@@ -2,10 +2,10 @@
 
 #include "cell.h"
 #include "common.h"
-
-#include <functional>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 struct PositionHasher {
     size_t operator()(const Position& pos) const noexcept {
@@ -13,22 +13,33 @@ struct PositionHasher {
     }
 };
 
+class CircularDependencyException : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 class Sheet : public SheetInterface {
 public:
     ~Sheet() override;
 
     void SetCell(Position pos, std::string text) override;
-
     const CellInterface* GetCell(Position pos) const override;
     CellInterface* GetCell(Position pos) override;
-
     void ClearCell(Position pos) override;
-
     Size GetPrintableSize() const override;
-
     void PrintValues(std::ostream& output) const override;
     void PrintTexts(std::ostream& output) const override;
 
+    void AddDependency(Position dependent, Position dependency);
+    void RemoveDependency(Position dependent, Position dependency);
+    void InvalidateCell(Position pos);
+    bool HasCycleAfterAdding(Position target, const std::vector<Position>& refs) const;
+
 private:
+    void InvalidateCellDFS(Position pos, std::unordered_set<Position, PositionHasher>& visited);
+    void ClearIncomingDependencies(Position pos);
+
     std::unordered_map<Position, std::unique_ptr<Cell>, PositionHasher> cells_;
+    std::unordered_map<Position, std::vector<Position>, PositionHasher> dependencies_;
+    std::unordered_map<Position, std::vector<Position>, PositionHasher> dependents_;
 };
